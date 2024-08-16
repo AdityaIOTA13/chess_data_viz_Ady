@@ -1,0 +1,118 @@
+let table;
+let points = [];
+let margin = 80;
+
+function preload() {
+    // Load the CSV file
+    table = loadTable('elo_rating_data.csv', 'csv', 'header', onLoad, onError);
+}
+
+function setup() {
+    createCanvas(windowWidth, windowHeight);
+    textAlign(CENTER, CENTER);
+    textSize(12);
+
+    if (table.getRowCount() === 0) {
+        console.error('No data loaded.');
+        return;
+    }
+
+    // Group data by date and calculate the average Elo rating for each date
+    let groupedData = {};
+    for (let i = 0; i < table.getRowCount(); i++) {
+        let date = table.getString(i, 'Date');
+        let eloRating = table.getNum(i, 'EloRating');
+        if (groupedData[date]) {
+            groupedData[date].push(eloRating);
+        } else {
+            groupedData[date] = [eloRating];
+        }
+    }
+
+    // Calculate the average Elo rating for each date and round it to an integer
+    let averagedData = Object.keys(groupedData).map(date => {
+        let ratings = groupedData[date];
+        let avgElo = Math.round(ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length); // Round the result
+        return { date: new Date(date), eloRating: avgElo };
+    });
+
+    // Sort the data by date
+    averagedData.sort((a, b) => a.date - b.date);
+
+    // Evenly distribute x-coordinates based on the number of data points
+    for (let i = 0; i < averagedData.length; i++) {
+        let x = map(i, 0, averagedData.length - 1, margin, width - margin);
+        let y = map(averagedData[i].eloRating, 500, 1350, height - margin, margin); // Adjust y-axis range to 1350
+        points.push({ x, y, date: averagedData[i].date, eloRating: averagedData[i].eloRating });
+    }
+}
+
+function draw() {
+    background(255);
+    stroke(0);
+    noFill();
+
+    // Draw x-axis and y-axis
+    strokeWeight(1);
+    line(margin, height - margin, width - margin, height - margin); // x-axis
+    line(margin, margin, margin, height - margin); // y-axis
+
+    // Draw axis labels
+    fill(0);
+    textAlign(CENTER);
+    textSize(14);
+    text("Date", width / 2, height - margin / 2);
+    text("Elo Rating", margin / 2, height / 2);
+
+    // Draw x-axis labels (dates) with selective labeling
+    for (let i = 0; i < points.length; i += Math.floor(points.length / 10)) { // Show only some labels
+        let label = points[i].date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+        textAlign(CENTER);
+        text(label, points[i].x, height - margin / 2);
+    }
+
+    // Draw y-axis labels (Elo Rating) with range up to 1350
+    for (let y = 500; y <= 1350; y += 100) { // Adjust range and steps as needed
+        let labelY = map(y, 500, 1350, height - margin, margin);
+        textAlign(RIGHT);
+        text(y, margin - 10, labelY);
+        line(margin - 5, labelY, margin + 5, labelY); // Small ticks on y-axis
+    }
+
+    // Draw the line connecting the Elo ratings
+    beginShape();
+    stroke(0);
+    strokeWeight(2);
+    noFill();
+    for (let point of points) {
+        vertex(point.x, point.y);
+    }
+    endShape();
+
+    // Draw points and interactive hover
+    for (let point of points) {
+        fill(0);
+        ellipse(point.x, point.y, 8, 8);
+        if (dist(mouseX, mouseY, point.x, point.y) < 10) {
+            fill(0);
+            textAlign(LEFT);
+            textSize(14);
+            text(`${point.date.toISOString().split('T')[0]}: ${point.eloRating}`, point.x + 15, point.y - 15);
+            noFill();
+        }
+    }
+}
+
+function onLoad() {
+    console.log('CSV loaded successfully.');
+}
+
+function onError() {
+    console.error('Error loading the CSV file.');
+}
+
+function windowResized() {
+    resizeCanvas(windowWidth, windowHeight);
+    // Recalculate points after resizing
+    setup();
+}
